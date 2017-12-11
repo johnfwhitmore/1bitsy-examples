@@ -28,6 +28,12 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/cm3/nvic.h>
 
+#define BITFIELD
+
+#ifdef BITFIELD
+#include "timer2_bitfields.h"
+#endif
+
 /*
  * 168,000,000 MHz Clock so for 1 Second Interrupt need PRESCALE * PERIOD = 168M
  * Note the PRESCALE has to be at most a 16 Bit value.
@@ -66,6 +72,32 @@ static void gpio_setup(void)
 			GPIO_PUPD_NONE, GPIO8);
 }
 
+#ifdef BITFIELD
+static void timer2_setup(void)
+{
+	struct TIMx *timer_2 = (struct TIMx *)TIM2;
+
+	rcc_periph_clock_enable(RCC_TIM2);
+	rcc_periph_reset_pulse(RST_TIM2);
+
+	timer_2->TIMx_CR1.CKD = 0;              // No divisor
+	timer_2->TIMx_CR1.CMS = 0;              // Edge Allignment
+	timer_2->TIMx_CR1.DIR = 0;              // Count Up
+	timer_2->TIMx_CR1.UDIS = 0;             // Enable the update event
+	timer_2->TIMx_CR1.URS = 0;              // Any event creates an update event
+	timer_2->TIMx_CR1.OPM = 0;              // Continuous mode
+	timer_2->TIMx_CR1.ARPE = 1;             // Enable preload
+	
+	timer_2->TIMx_PSC.PSC = PRESCALE;       // Set the prescaller
+	timer_2->TIMx_ARR.TIMER2.ARR = PERIOD;  // Set the auto-reload reg
+	timer_2->TIMx_EGR.UG = 1;               // Initialise update event
+	timer_2->TIMx_DIER.UIE = 1;             // Enable the Interrupt
+
+	nvic_enable_irq(NVIC_TIM2_IRQ);         // Enable the Interrupt in the Interrupt Controller
+
+	timer_2->TIMx_CR1.CEN = 1;              // Start the counter.
+}
+#else	
 static void timer2_setup(void)
 {
 	rcc_periph_clock_enable(RCC_TIM2);
@@ -84,6 +116,7 @@ static void timer2_setup(void)
 	nvic_enable_irq(NVIC_TIM2_IRQ);          // Enable the Interrupt in the Interrupt Controller
 	timer_enable_counter(TIM2);              // Start the counter.
 }
+#endif
 
 int main(void)
 {
